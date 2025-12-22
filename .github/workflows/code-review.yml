@@ -1,4 +1,4 @@
-name: Code Review Tool
+name: PR Code Review Tool
 
 on:
   pull_request:
@@ -19,5 +19,4 @@ jobs:
           python-version: '3.11'
 
       - name: Run code review
-        run: |
-          python ci_review.py
+        run: python ci_review.py
