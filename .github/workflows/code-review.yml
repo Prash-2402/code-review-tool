@@ -1,0 +1,61 @@
+name: Code Review Tool
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Run code review
+      run: |
+        python <<EOF
+        import subprocess
+
+        changed = subprocess.check_output(
+            ["git", "diff", "--name-only", "origin/main"]
+        ).decode().splitlines()
+
+        py_files = [f for f in changed if f.endswith(".py")]
+
+        if not py_files:
+            print("No Python files changed")
+            exit(0)
+
+        print("### 🛠️ Code Review Report\n")
+
+        for file in py_files:
+            with open(file, "r") as f:
+                lines = f.readlines()
+
+            assigned = {}
+            used = set()
+
+            for i, line in enumerate(lines, start=1):
+                if "=" in line:
+                    left, right = line.split("=", 1)
+                    left = left.strip()
+                    if left.isidentifier():
+                        assigned[left] = i
+                    for w in right.split():
+                        if w.isidentifier():
+                            used.add(w)
+                else:
+                    for w in line.split():
+                        if w.isidentifier():
+                            used.add(w)
+
+            for var, ln in assigned.items():
+                if var not in used:
+                    print(f"{file}: ❌ BUG `{var}` unused at line {ln}")
+        EOF
