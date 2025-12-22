@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Code Review Tool</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f4f4;
+            padding: 20px;
+        }
+        textarea {
+            width: 100%;
+            height: 250px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        .issue {
+            background: white;
+            padding: 10px;
+            margin-top: 10px;
+            border-left: 5px solid red;
+        }
+        .warning { border-color: orange; }
+        .info { border-color: green; }
+    </style>
+</head>
+<body>
+
+<h2>🛠️ Code Review Tool</h2>
+<p>Paste your Python code below and analyze it.</p>
+
+<textarea id="codeInput" placeholder="Paste Python code here..."></textarea>
+<br>
+<button onclick="analyze()">Analyze Code</button>
+
+<h3>Results</h3>
+<div id="results"></div>
+
+<script>
+async function analyze() {
+    const code = document.getElementById("codeInput").value;
+    const resultsDiv = document.getElementById("results");
+    resultsDiv.innerHTML = "Analyzing...";
+
+    const response = await fetch("http://127.0.0.1:8000/analyze", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ code: code })
+    });
+
+    const data = await response.json();
+    resultsDiv.innerHTML = "";
+
+    data.issues.forEach(issue => {
+        const div = document.createElement("div");
+        div.className = "issue " + issue.type;
+        div.innerText = issue.type.toUpperCase() + ": " + issue.message;
+        resultsDiv.appendChild(div);
+    });
+}
+</script>
+
+</body>
+</html>
