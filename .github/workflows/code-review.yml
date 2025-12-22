@@ -9,53 +9,61 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Run code review
-      run: |
-        python <<EOF
-        import subprocess
+      - name: Run code review
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python <<EOF
+          import subprocess
 
-        changed = subprocess.check_output(
-            ["git", "diff", "--name-only", "origin/main"]
-        ).decode().splitlines()
+          base = "${BASE_SHA}"
+          head = "${HEAD_SHA}"
 
-        py_files = [f for f in changed if f.endswith(".py")]
+          files = subprocess.check_output(
+              ["git", "diff", "--name-only", base, head]
+          ).decode().splitlines()
 
-        if not py_files:
-            print("No Python files changed")
-            exit(0)
+          py_files = [f for f in files if f.endswith(".py")]
 
-        print("### 🛠️ Code Review Report\n")
+          if not py_files:
+              print("✅ No Python files changed")
+              exit(0)
 
-        for file in py_files:
-            with open(file, "r") as f:
-                lines = f.readlines()
+          print("🛠️ Code Review Report\n")
 
-            assigned = {}
-            used = set()
+          for file in py_files:
+              with open(file, "r") as f:
+                  lines = f.readlines()
 
-            for i, line in enumerate(lines, start=1):
-                if "=" in line:
-                    left, right = line.split("=", 1)
-                    left = left.strip()
-                    if left.isidentifier():
-                        assigned[left] = i
-                    for w in right.split():
-                        if w.isidentifier():
-                            used.add(w)
-                else:
-                    for w in line.split():
-                        if w.isidentifier():
-                            used.add(w)
+              assigned = {}
+              used = set()
 
-            for var, ln in assigned.items():
-                if var not in used:
-                    print(f"{file}: ❌ BUG `{var}` unused at line {ln}")
-        EOF
+              for i, line in enumerate(lines, start=1):
+                  if "=" in line:
+                      left, right = line.split("=", 1)
+                      left = left.strip()
+                      if left.isidentifier():
+                          assigned[left] = i
+                      for w in right.split():
+                          if w.isidentifier():
+                              used.add(w)
+                  else:
+                      for w in line.split():
+                          if w.isidentifier():
+                              used.add(w)
+
+              for var, ln in assigned.items():
+                  if var not in used:
+                      print(f"{file}: ❌ BUG `{var}` unused at line {ln}")
+          EOF
