@@ -7,8 +7,7 @@ app = FastAPI()
 # -------- ENABLE CORS --------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # allow all origins (safe for local dev)
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -17,10 +16,12 @@ app.add_middleware(
 class CodeInput(BaseModel):
     code: str
 
+# -------- HOME --------
 @app.get("/")
 def home():
     return {"message": "Code Review Tool Backend Running"}
 
+# -------- ANALYZE --------
 @app.post("/analyze")
 def analyze_code(input: CodeInput):
     code = input.code
@@ -28,41 +29,64 @@ def analyze_code(input: CodeInput):
 
     lines = code.split("\n")
 
-    if "print(" in code:
-        issues.append({
-            "type": "warning",
-            "message": "Avoid using print() in production code"
-        })
+    # ---------- RULE 1: print() usage ----------
+    for i, line in enumerate(lines, start=1):
+        if "print(" in line:
+            issues.append({
+                "severity": "WARNING",
+                "line": i,
+                "message": "Avoid using print() in production code"
+            })
 
+    # ---------- RULE 2: file too long ----------
     if len(lines) > 30:
         issues.append({
-            "type": "warning",
+            "severity": "INFO",
+            "line": None,
             "message": "File is long. Consider breaking code into smaller functions"
         })
 
-    assigned = set()
-    used = set()
+    # ---------- RULE 3: UNUSED VARIABLES (CORRECT LOGIC) ----------
+    assigned = {}   # variable -> line number
+    used = set()    # variables used on RHS or later lines
 
-    for line in lines:
+    for i, line in enumerate(lines, start=1):
+        line = line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
         if "=" in line:
-            left = line.split("=")[0].strip()
+            left, right = line.split("=", 1)
+            left = left.strip()
+
+            # assignment
             if left.isidentifier():
-                assigned.add(left)
+                assigned[left] = i
 
-        for word in line.split():
-            if word.isidentifier():
-                used.add(word)
+            # usage on RHS
+            for word in right.replace("(", " ").replace(")", " ").split():
+                if word.isidentifier():
+                    used.add(word)
+        else:
+            # usage in non-assignment lines
+            for word in line.replace("(", " ").replace(")", " ").split():
+                if word.isidentifier():
+                    used.add(word)
 
-    unused_vars = assigned - used
-    for var in unused_vars:
-        issues.append({
-            "type": "bug",
-            "message": f"Variable '{var}' is assigned but never used"
-        })
+    for var, line_no in assigned.items():
+        if var not in used:
+            issues.append({
+                "severity": "BUG",
+                "line": line_no,
+                "message": f"Variable '{var}' is assigned but never used"
+            })
 
+    # ---------- NO ISSUES ----------
     if not issues:
         issues.append({
-            "type": "info",
+            "severity": "INFO",
+            "line": None,
             "message": "No obvious issues found"
         })
 
