@@ -1,10 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# -------- ENABLE CORS --------
+# ---- CORS ----
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -12,24 +12,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -------- DATA MODEL --------
 class CodeInput(BaseModel):
     code: str
 
-# -------- HOME --------
 @app.get("/")
 def home():
     return {"message": "Code Review Tool Backend Running"}
 
-# -------- ANALYZE --------
-@app.post("/analyze")
-def analyze_code(input: CodeInput):
-    code = input.code
+# ---------- CORE ANALYSIS LOGIC ----------
+def analyze_text(code: str):
     issues = []
-
     lines = code.split("\n")
 
-    # ---------- RULE 1: print() usage ----------
+    # print() rule
     for i, line in enumerate(lines, start=1):
         if "print(" in line:
             issues.append({
@@ -38,7 +33,7 @@ def analyze_code(input: CodeInput):
                 "message": "Avoid using print() in production code"
             })
 
-    # ---------- RULE 2: file too long ----------
+    # file too long
     if len(lines) > 30:
         issues.append({
             "severity": "INFO",
@@ -46,30 +41,25 @@ def analyze_code(input: CodeInput):
             "message": "File is long. Consider breaking code into smaller functions"
         })
 
-    # ---------- RULE 3: UNUSED VARIABLES (CORRECT LOGIC) ----------
-    assigned = {}   # variable -> line number
-    used = set()    # variables used on RHS or later lines
+    # unused variables
+    assigned = {}
+    used = set()
 
     for i, line in enumerate(lines, start=1):
         line = line.strip()
-
         if not line or line.startswith("#"):
             continue
 
         if "=" in line:
             left, right = line.split("=", 1)
             left = left.strip()
-
-            # assignment
             if left.isidentifier():
                 assigned[left] = i
 
-            # usage on RHS
             for word in right.replace("(", " ").replace(")", " ").split():
                 if word.isidentifier():
                     used.add(word)
         else:
-            # usage in non-assignment lines
             for word in line.replace("(", " ").replace(")", " ").split():
                 if word.isidentifier():
                     used.add(word)
@@ -82,7 +72,6 @@ def analyze_code(input: CodeInput):
                 "message": f"Variable '{var}' is assigned but never used"
             })
 
-    # ---------- NO ISSUES ----------
     if not issues:
         issues.append({
             "severity": "INFO",
@@ -91,3 +80,24 @@ def analyze_code(input: CodeInput):
         })
 
     return {"issues": issues}
+
+# ---------- TEXT INPUT ----------
+@app.post("/analyze")
+def analyze_code(input: CodeInput):
+    return analyze_text(input.code)
+
+# ---------- FILE UPLOAD ----------
+@app.post("/analyze-file")
+async def analyze_file(file: UploadFile = File(...)):
+    if not file.filename.endswith(".py"):
+        return {
+            "issues": [{
+                "severity": "ERROR",
+                "line": None,
+                "message": "Only .py files are supported"
+            }]
+        }
+
+    content = await file.read()
+    code = content.decode("utf-8")
+    return analyze_text(code)
