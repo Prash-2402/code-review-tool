@@ -1,71 +1,167 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Code Review Tool</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #f4f4f4;
-            padding: 20px;
-        }
-        textarea {
-            width: 100%;
-            height: 250px;
-            font-family: monospace;
-            font-size: 14px;
-        }
-        button {
-            margin-top: 10px;
-            padding: 10px 20px;
-            font-size: 16px;
-        }
-        .issue {
-            background: white;
-            padding: 10px;
-            margin-top: 10px;
-            border-left: 5px solid red;
-        }
-        .warning { border-color: orange; }
-        .info { border-color: green; }
-    </style>
+  <title>Code Review Tool</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+
+    h2 {
+      margin-bottom: 5px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 260px;
+      font-family: Consolas, monospace;
+      font-size: 14px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    button {
+      margin-top: 10px;
+      margin-right: 10px;
+      padding: 10px 16px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    #results {
+      margin-top: 20px;
+    }
+
+    .issue {
+      background: #fff;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-left: 6px solid #999;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .BUG {
+      border-color: #e74c3c;
+    }
+
+    .WARNING {
+      border-color: #f39c12;
+    }
+
+    .INFO {
+      border-color: #27ae60;
+    }
+
+    .ERROR {
+      border-color: #8e44ad;
+    }
+
+    .tag {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    .line {
+      color: #555;
+      margin-right: 6px;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>🛠️ Code Review Tool</h2>
-<p>Paste your Python code below and analyze it.</p>
+  <h2>🛠️ Code Review Tool</h2>
+  <p>Paste Python code or upload a <b>.py</b> file for analysis.</p>
 
-<textarea id="codeInput" placeholder="Paste Python code here..."></textarea>
-<br>
-<button onclick="analyze()">Analyze Code</button>
+  <!-- TEXT INPUT -->
+  <textarea id="codeInput" placeholder="Paste Python code here..."></textarea>
 
-<h3>Results</h3>
-<div id="results"></div>
+  <br><br>
 
-<script>
-async function analyze() {
-    const code = document.getElementById("codeInput").value;
-    const resultsDiv = document.getElementById("results");
-    resultsDiv.innerHTML = "Analyzing...";
+  <!-- FILE INPUT -->
+  <input type="file" id="fileInput" accept=".py">
 
-    const response = await fetch("http://127.0.0.1:8000/analyze", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ code: code })
-    });
+  <br><br>
 
-    const data = await response.json();
-    resultsDiv.innerHTML = "";
+  <!-- BUTTONS -->
+  <button onclick="analyzeText()">Analyze Text</button>
+  <button onclick="analyzeFile()">Analyze File</button>
 
-    data.issues.forEach(issue => {
+  <!-- RESULTS -->
+  <div id="results"></div>
+
+  <script>
+    async function showResults(data) {
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "";
+
+      if (!data.issues || data.issues.length === 0) {
+        resultsDiv.innerHTML = "<p>No issues found.</p>";
+        return;
+      }
+
+      data.issues.forEach(issue => {
         const div = document.createElement("div");
-        div.className = "issue " + issue.type;
-        div.innerText = issue.type.toUpperCase() + ": " + issue.message;
+        div.className = "issue " + issue.severity;
+
+        const tag = `<span class="tag">[${issue.severity}]</span>`;
+        const line = issue.line ? `<span class="line">Line ${issue.line} →</span>` : "";
+
+        div.innerHTML = `${tag} ${line} ${issue.message}`;
         resultsDiv.appendChild(div);
-    });
-}
-</script>
+      });
+    }
+
+    async function analyzeText() {
+      const code = document.getElementById("codeInput").value;
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "<p>Analyzing...</p>";
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code })
+        });
+
+        const data = await res.json();
+        showResults(data);
+      } catch (err) {
+        resultsDiv.innerHTML = "<p style='color:red'>Backend not reachable.</p>";
+      }
+    }
+
+    async function analyzeFile() {
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert("Please select a .py file");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const resultsDiv = document.getElementById("results");
+      resultsDiv.innerHTML = "<p>Analyzing file...</p>";
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/analyze-file", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        showResults(data);
+      } catch (err) {
+        resultsDiv.innerHTML = "<p style='color:red'>Backend not reachable.</p>";
+      }
+    }
+  </script>
 
 </body>
 </html>
