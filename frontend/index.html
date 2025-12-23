@@ -1,105 +1,200 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-  <title>Code Review Tool</title>
+  <meta charset="UTF-8" />
+  <title>Python Code Review Tool</title>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      padding: 20px;
+    * {
+      box-sizing: border-box;
     }
 
-    h2 {
-      margin-bottom: 5px;
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .app {
+      width: 95%;
+      max-width: 1100px;
+      background: #020617;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+    }
+
+    h1 {
+      margin-top: 0;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+
+    .input-section {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
     }
 
     textarea {
       width: 100%;
-      height: 260px;
+      height: 280px;
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px;
       font-family: Consolas, monospace;
       font-size: 14px;
-      padding: 10px;
-      box-sizing: border-box;
+      resize: vertical;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #38bdf8;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    input[type="file"] {
+      color: #cbd5f5;
     }
 
     button {
-      margin-top: 10px;
-      margin-right: 10px;
+      background: #38bdf8;
+      color: #020617;
+      border: none;
+      border-radius: 8px;
       padding: 10px 16px;
       font-size: 15px;
       cursor: pointer;
+      font-weight: 600;
     }
 
-    #results {
-      margin-top: 20px;
+    button.secondary {
+      background: #1e293b;
+      color: #e5e7eb;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .results {
+      margin-top: 22px;
+    }
+
+    .results h2 {
+      margin-bottom: 10px;
+      font-weight: 500;
     }
 
     .issue {
-      background: #fff;
-      padding: 10px;
-      margin-bottom: 8px;
-      border-left: 6px solid #999;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-left-width: 6px;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      line-height: 1.5;
     }
 
     .BUG {
-      border-color: #e74c3c;
+      border-left-color: #ef4444;
     }
 
     .WARNING {
-      border-color: #f39c12;
+      border-left-color: #f59e0b;
     }
 
     .INFO {
-      border-color: #27ae60;
+      border-left-color: #22c55e;
     }
 
     .ERROR {
-      border-color: #8e44ad;
+      border-left-color: #a855f7;
     }
 
     .tag {
-      font-weight: bold;
+      font-weight: 700;
       margin-right: 6px;
     }
 
     .line {
-      color: #555;
+      color: #94a3b8;
       margin-right: 6px;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 18px;
+      color: #64748b;
+      font-size: 13px;
     }
   </style>
 </head>
 
 <body>
 
-  <h2>🛠️ Code Review Tool</h2>
-  <p>Paste Python code or upload a <b>.py</b> file for analysis.</p>
+  <div class="app">
+    <h1>🛠️ Python Code Review Tool</h1>
+    <p class="subtitle">
+      Static analysis • AST rules • File upload • GitHub Actions ready
+    </p>
 
-  <!-- TEXT INPUT -->
-  <textarea id="codeInput" placeholder="Paste Python code here..."></textarea>
+    <div class="input-section">
+      <textarea id="codeInput" placeholder="Paste Python code here..."></textarea>
 
-  <br><br>
+      <div class="controls">
+        <input type="file" id="fileInput" accept=".py" />
+        <button onclick="analyzeText()">Analyze Code</button>
+        <button class="secondary" onclick="analyzeFile()">Analyze File</button>
+        <button class="secondary" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
 
-  <!-- FILE INPUT -->
-  <input type="file" id="fileInput" accept=".py">
+    <div class="results" id="results">
+      <h2>Results</h2>
+    </div>
 
-  <br><br>
-
-  <!-- BUTTONS -->
-  <button onclick="analyzeText()">Analyze Text</button>
-  <button onclick="analyzeFile()">Analyze File</button>
-
-  <!-- RESULTS -->
-  <div id="results"></div>
+    <div class="footer">
+      Built with Python • FastAPI • GitHub Actions
+    </div>
+  </div>
 
   <script>
-    async function showResults(data) {
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "";
+    const API_BASE = "http://127.0.0.1:8000";
+
+    function clearAll() {
+      document.getElementById("codeInput").value = "";
+      document.getElementById("fileInput").value = "";
+      document.getElementById("results").innerHTML = "<h2>Results</h2>";
+    }
+
+    function renderResults(data) {
+      const results = document.getElementById("results");
+      results.innerHTML = "<h2>Results</h2>";
 
       if (!data.issues || data.issues.length === 0) {
-        resultsDiv.innerHTML = "<p>No issues found.</p>";
+        results.innerHTML += "<p>No issues found.</p>";
         return;
       }
 
@@ -111,57 +206,42 @@
         const line = issue.line ? `<span class="line">Line ${issue.line} →</span>` : "";
 
         div.innerHTML = `${tag} ${line} ${issue.message}`;
-        resultsDiv.appendChild(div);
+        results.appendChild(div);
       });
     }
 
     async function analyzeText() {
       const code = document.getElementById("codeInput").value;
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "<p>Analyzing...</p>";
+      if (!code.trim()) return;
 
-      try {
-        const res = await fetch("http://127.0.0.1:8000/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code })
-        });
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+      });
 
-        const data = await res.json();
-        showResults(data);
-      } catch (err) {
-        resultsDiv.innerHTML = "<p style='color:red'>Backend not reachable.</p>";
-      }
+      renderResults(await res.json());
     }
 
     async function analyzeFile() {
-      const fileInput = document.getElementById("fileInput");
-      const file = fileInput.files[0];
-
+      const file = document.getElementById("fileInput").files[0];
       if (!file) {
-        alert("Please select a .py file");
+        alert("Select a .py file first");
         return;
       }
 
       const formData = new FormData();
       formData.append("file", file);
 
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "<p>Analyzing file...</p>";
+      const res = await fetch(`${API_BASE}/analyze-file`, {
+        method: "POST",
+        body: formData
+      });
 
-      try {
-        const res = await fetch("http://127.0.0.1:8000/analyze-file", {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await res.json();
-        showResults(data);
-      } catch (err) {
-        resultsDiv.innerHTML = "<p style='color:red'>Backend not reachable.</p>";
-      }
+      renderResults(await res.json());
     }
   </script>
 
 </body>
+
 </html>
