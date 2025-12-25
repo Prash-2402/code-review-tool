@@ -1,4 +1,5 @@
 # code-review-tool
+Uses free backend server so please wait 20-30 seconds on your 1st request.
 This is where i will be sharing the steps of my code review tool that i am making for my project
 # 🛠️ Code Review Tool (Python)
 
@@ -58,9 +59,6 @@ code-review-tool/
 └── README.md
 
 yaml
-Copy code
-
----
 
 ## 🧪 How It Works
 
@@ -96,7 +94,7 @@ http://127.0.0.1:8000
 Open this file directly in browser:
 
 bash
-Copy code
+
 frontend/index.html
 🧩 Example Issues Detected
 python
@@ -106,7 +104,7 @@ print("hello")
 Output:
 
 pgsql
-Copy code
+
 BUG      Line 1 → Variable 'x' is assigned but never used
 WARNING  Line 2 → Avoid using print() in production code
 🧠 Learning Outcomes
@@ -148,7 +146,6 @@ Internship-ready skills
 ⭐ Star the repo if you find it useful!
 
 yaml
-Copy code
 
 ---
 
