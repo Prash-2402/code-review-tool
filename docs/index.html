@@ -3,246 +3,1481 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Python Code Review Tool</title>
+  <meta name="description"
+    content="Instant Python static analysis – detect bugs, warnings, and code smells in seconds." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <!-- CodeMirror 5 via CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 
   <style>
-    * {
+    /* ── RESET & BASE ───────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #05091a;
+      --surface: #0d1428;
+      --surface2: #111d36;
+      --glass: rgba(255, 255, 255, 0.04);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.25);
+      --accent-dim: rgba(59, 130, 246, 0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239, 68, 68, 0.12);
+      --amber: #f59e0b;
+      --amber-dim: rgba(245, 158, 11, 0.12);
+      --green: #22c55e;
+      --green-dim: rgba(34, 197, 94, 0.12);
+      --purple: #a855f7;
+      --purple-dim: rgba(168, 85, 247, 0.12);
+      --text: #e2e8f0;
+      --text-muted: #64748b;
+      --text-dim: #94a3b8;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html {
+      scroll-behavior: smooth;
     }
 
     body {
-      margin: 0;
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: #0f172a;
-      color: #e5e7eb;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
-      justify-content: center;
-      align-items: center;
+      flex-direction: column;
+      overflow-x: hidden;
     }
 
-    .app {
-      width: 95%;
-      max-width: 1100px;
-      background: #020617;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+    /* ── ANIMATED BACKGROUND ─────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% -10%, rgba(59, 130, 246, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(168, 85, 247, 0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
     }
 
-    h1 {
-      margin-top: 0;
-      text-align: center;
-      font-weight: 600;
-    }
-
-    .subtitle {
-      text-align: center;
-      color: #94a3b8;
-      margin-bottom: 20px;
-    }
-
-    .input-section {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-
-    textarea {
-      width: 100%;
-      height: 280px;
-      background: #020617;
-      color: #e5e7eb;
-      border: 1px solid #1e293b;
-      border-radius: 8px;
-      padding: 14px;
-      font-family: Consolas, monospace;
-      font-size: 14px;
-      resize: vertical;
-    }
-
-    textarea:focus {
-      outline: none;
-      border-color: #38bdf8;
-    }
-
-    .controls {
+    /* ── HEADER ─────────────────────────────────────────────────── */
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--glass-border);
+      background: rgba(5, 9, 26, 0.85);
+      backdrop-filter: blur(20px);
       display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
       align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
     }
 
-    input[type="file"] {
-      color: #cbd5f5;
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
 
-    button {
-      background: #38bdf8;
-      color: #020617;
-      border: none;
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .header-title h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+
+    .header-title p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .api-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
+      transition: var(--transition);
+    }
+
+    .api-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s infinite;
+    }
+
+    .api-dot.offline {
+      background: var(--red);
+      animation: none;
+    }
+
+    @keyframes pulse-dot {
+
+      0%,
+      100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+      }
+
+      50% {
+        opacity: 0.8;
+        box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);
+      }
+    }
+
+    /* ── MAIN LAYOUT ─────────────────────────────────────────────── */
+    main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px;
+      gap: 20px;
+    }
+
+    /* ── PANELS ──────────────────────────────────────────────────── */
+    .panel {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(12px);
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--glass-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-title-icon {
+      width: 30px;
+      height: 30px;
       border-radius: 8px;
-      padding: 10px 16px;
+      background: var(--accent-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 15px;
+    }
+
+    .panel-title span {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* ── CODE EDITOR ─────────────────────────────────────────────── */
+    .CodeMirror {
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 13.5px;
+      line-height: 1.7;
+      height: 380px;
+      background: transparent !important;
+    }
+
+    .CodeMirror-scroll {
+      padding-bottom: 16px;
+    }
+
+    .CodeMirror-gutters {
+      background: rgba(0, 0, 0, 0.15) !important;
+      border-right: 1px solid var(--glass-border) !important;
+    }
+
+    .editor-wrapper {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Highlighted line */
+    .CodeMirror-activeline-background {
+      background: rgba(59, 130, 246, 0.08) !important;
+    }
+
+    .cm-highlight-line {
+      background: rgba(245, 158, 11, 0.15) !important;
+    }
+
+    /* ── DRAG DROP ZONE ──────────────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed var(--glass-border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      text-align: center;
       cursor: pointer;
+      transition: var(--transition);
+      margin: 0 16px 6px;
+      flex-shrink: 0;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .drop-zone.drag-over {
+      transform: scale(1.01);
+    }
+
+    .drop-zone-text {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .drop-zone-text strong {
+      color: var(--accent);
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    /* ── BUTTONS ─────────────────────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: var(--radius-sm);
+      border: none;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+      box-shadow: 0 0 24px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      color: var(--text-dim);
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface2);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0) !important;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* ── SAMPLE SNIPPETS ─────────────────────────────────────────── */
+    .samples-row {
+      display: flex;
+      gap: 6px;
+      padding: 0 16px 12px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .sample-chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .sample-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ── RESULTS PANEL ───────────────────────────────────────────── */
+    .summary-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      padding: 14px 16px;
+      flex-shrink: 0;
+    }
+
+    .stat-card {
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid transparent;
+      transition: var(--transition);
+      cursor: default;
+    }
+
+    .stat-card.bugs {
+      background: var(--red-dim);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .stat-card.warns {
+      background: var(--amber-dim);
+      border-color: rgba(245, 158, 11, 0.2);
+    }
+
+    .stat-card.infos {
+      background: var(--green-dim);
+      border-color: rgba(34, 197, 94, 0.2);
+    }
+
+    .stat-card.errors {
+      background: var(--purple-dim);
+      border-color: rgba(168, 85, 247, 0.2);
+    }
+
+    .stat-emoji {
+      font-size: 18px;
+    }
+
+    .stat-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-count {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-card.bugs .stat-count {
+      color: var(--red);
+    }
+
+    .stat-card.warns .stat-count {
+      color: var(--amber);
+    }
+
+    .stat-card.infos .stat-count {
+      color: var(--green);
+    }
+
+    .stat-card.errors .stat-count {
+      color: var(--purple);
+    }
+
+    /* ── METRICS ROW ─────────────────────────────────────────────── */
+    .metrics-bar {
+      display: flex;
+      gap: 6px;
+      padding: 0 16px 10px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .metric-chip {
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      font-size: 11.5px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .metric-chip strong {
+      color: var(--accent);
       font-weight: 600;
     }
 
-    button.secondary {
-      background: #1e293b;
-      color: #e5e7eb;
+    /* ── FILTER PILLS ────────────────────────────────────────────── */
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      padding: 0 16px 12px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      align-items: center;
     }
 
-    button:hover {
-      opacity: 0.9;
+    .filter-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-right: 4px;
     }
 
-    .results {
-      margin-top: 22px;
+    .pill {
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: 'Inter', sans-serif;
+      color: var(--text-dim);
     }
 
-    .results h2 {
-      margin-bottom: 10px;
-      font-weight: 500;
+    .pill:hover {
+      transform: translateY(-1px);
     }
 
-    .issue {
-      background: #020617;
-      border: 1px solid #1e293b;
-      border-left-width: 6px;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 10px;
-      font-size: 14px;
-      line-height: 1.5;
+    .pill.active {
+      color: #fff;
+      transform: translateY(-1px);
     }
 
-    .BUG {
-      border-left-color: #ef4444;
+    .pill[data-filter="ALL"].active {
+      background: var(--accent);
+      border-color: var(--accent);
     }
 
-    .WARNING {
-      border-left-color: #f59e0b;
+    .pill[data-filter="BUG"].active {
+      background: var(--red);
+      border-color: var(--red);
     }
 
-    .INFO {
-      border-left-color: #22c55e;
+    .pill[data-filter="WARNING"].active {
+      background: var(--amber);
+      border-color: var(--amber);
+      color: #000;
     }
 
-    .ERROR {
-      border-left-color: #a855f7;
+    .pill[data-filter="INFO"].active {
+      background: var(--green);
+      border-color: var(--green);
+      color: #000;
     }
 
-    .tag {
+    .pill[data-filter="ERROR"].active {
+      background: var(--purple);
+      border-color: var(--purple);
+    }
+
+    /* ── ISSUE LIST ──────────────────────────────────────────────── */
+    .issues-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 16px 16px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--glass-border) transparent;
+    }
+
+    .issues-list::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .issues-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .issues-list::-webkit-scrollbar-thumb {
+      background: var(--glass-border);
+      border-radius: 10px;
+    }
+
+    .issue-card {
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border: 1px solid transparent;
+      border-left-width: 4px;
+      cursor: pointer;
+      transition: var(--transition);
+      animation: slide-in 0.25s ease both;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    @keyframes slide-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .issue-card:hover {
+      transform: translateX(3px);
+      filter: brightness(1.1);
+    }
+
+    .issue-card.hidden {
+      display: none;
+    }
+
+    .issue-card.BUG {
+      background: var(--red-dim);
+      border-color: var(--red);
+    }
+
+    .issue-card.WARNING {
+      background: var(--amber-dim);
+      border-color: var(--amber);
+    }
+
+    .issue-card.INFO {
+      background: var(--green-dim);
+      border-color: var(--green);
+    }
+
+    .issue-card.ERROR {
+      background: var(--purple-dim);
+      border-color: var(--purple);
+    }
+
+    .issue-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .issue-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .issue-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .severity-badge {
+      padding: 1px 7px;
+      border-radius: 20px;
+      font-size: 10px;
       font-weight: 700;
-      margin-right: 6px;
+      letter-spacing: 0.5px;
     }
 
-    .line {
-      color: #94a3b8;
-      margin-right: 6px;
+    .BUG .severity-badge {
+      background: var(--red);
+      color: #fff;
     }
 
-    .footer {
-      text-align: center;
-      margin-top: 18px;
-      color: #64748b;
+    .WARNING .severity-badge {
+      background: var(--amber);
+      color: #000;
+    }
+
+    .INFO .severity-badge {
+      background: var(--green);
+      color: #000;
+    }
+
+    .ERROR .severity-badge {
+      background: var(--purple);
+      color: #fff;
+    }
+
+    .issue-line {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .issue-message {
       font-size: 13px;
+      color: var(--text);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .issue-hint {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── LOADING ─────────────────────────────────────────────────── */
+    .loader {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 40px;
+      flex: 1;
+    }
+
+    .loader.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 3px solid var(--glass-border);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loader p {
+      font-size: 13px;
+      color: var(--text-muted);
+      animation: fade-pulse 1.5s ease infinite;
+    }
+
+    @keyframes fade-pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
+    }
+
+    /* ── EMPTY STATE ─────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      text-align: center;
+      flex: 1;
+      gap: 12px;
+    }
+
+    .empty-state .big-icon {
+      font-size: 52px;
+      line-height: 1;
+    }
+
+    .empty-state h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .empty-state p {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 280px;
+    }
+
+    /* ── RESULTS ACTIONS ─────────────────────────────────────────── */
+    .results-actions {
+      display: flex;
+      gap: 8px;
+      padding: 0 16px 12px;
+      flex-shrink: 0;
+      border-top: 1px solid var(--glass-border);
+      padding-top: 12px;
+    }
+
+    /* ── TOAST ───────────────────────────────────────────────────── */
+    #toasts {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      animation: toast-in 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 320px;
+    }
+
+    .toast.success {
+      background: #166534;
+      border: 1px solid var(--green);
+    }
+
+    .toast.error {
+      background: #7f1d1d;
+      border: 1px solid var(--red);
+    }
+
+    .toast.info {
+      background: #1e3a5f;
+      border: 1px solid var(--accent);
+    }
+
+    @keyframes toast-in {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* ── FOOTER ──────────────────────────────────────────────────── */
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--glass-border);
+    }
+
+    footer span {
+      color: var(--accent);
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      .summary-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      header {
+        padding: 14px 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .summary-bar {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .btn-row {
+        flex-wrap: wrap;
+      }
     }
   </style>
 </head>
 
 <body>
 
-  <div class="app">
-    <h1>🛠️ Python Code Review Tool</h1>
-    <p class="subtitle">
-      Static analysis • AST rules • File upload • GitHub Actions ready
-    </p>
+  <!-- ── HEADER ─────────────────────────────────── -->
+  <header>
+    <div class="header-left">
+      <div class="logo">🔍</div>
+      <div class="header-title">
+        <h1>Python Code Review Tool</h1>
+        <p>Static analysis · AST rules · 11 checks · Instant results</p>
+      </div>
+    </div>
+    <div class="api-badge">
+      <span class="api-dot" id="apiDot"></span>
+      <span id="apiStatus">Checking API…</span>
+    </div>
+  </header>
 
-    <div class="input-section">
-      <textarea id="codeInput" placeholder="Paste Python code here..."></textarea>
+  <!-- ── MAIN ───────────────────────────────────── -->
+  <main>
 
-      <div class="controls">
+    <!-- LEFT: EDITOR PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-title-icon">📝</div>
+          <span>Code Editor</span>
+        </div>
+        <button class="btn btn-secondary" onclick="copyCode()" id="copyBtn" style="padding:5px 12px;font-size:12px;">📋
+          Copy</button>
+      </div>
+
+      <!-- CodeMirror will mount here -->
+      <div class="editor-wrapper">
+        <textarea id="codeInput"></textarea>
+      </div>
+
+      <!-- Drag & Drop -->
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="drop-zone-text">
+          📁 Drop a <strong>.py file</strong> here or <strong>click to upload</strong>
+        </div>
         <input type="file" id="fileInput" accept=".py" />
-        <button onclick="analyzeText()">Analyze Code</button>
-        <button class="secondary" onclick="analyzeFile()">Analyze File</button>
-        <button class="secondary" onclick="clearAll()">Clear</button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="runAnalysis()" id="analyzeBtn">
+          🔍 Analyze Code
+        </button>
+        <button class="btn btn-secondary" onclick="analyzeFile()" id="fileBtn">
+          📤 Analyze File
+        </button>
+        <button class="btn btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+      </div>
+
+      <!-- Sample Snippets -->
+      <div class="samples-row">
+        <span class="filter-label">Try sample:</span>
+        <button class="sample-chip" onclick="loadSample('bugs')">🐛 Common Bugs</button>
+        <button class="sample-chip" onclick="loadSample('style')">✨ Style Issues</button>
+        <button class="sample-chip" onclick="loadSample('clean')">✅ Clean Code</button>
       </div>
     </div>
 
-    <div class="results" id="results">
-      <h2>Results</h2>
+    <!-- RIGHT: RESULTS PANEL -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <div class="panel-title-icon">📊</div>
+          <span>Analysis Results</span>
+        </div>
+        <span id="resultCount" style="font-size:12px;color:var(--text-muted);">No analysis yet</span>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="summary-bar" id="summaryBar" style="display:none;">
+        <div class="stat-card bugs">
+          <span class="stat-emoji">🐛</span>
+          <div class="stat-info">
+            <span class="stat-count" id="statBugs">0</span>
+            <span class="stat-label">Bugs</span>
+          </div>
+        </div>
+        <div class="stat-card warns">
+          <span class="stat-emoji">⚠️</span>
+          <div class="stat-info">
+            <span class="stat-count" id="statWarns">0</span>
+            <span class="stat-label">Warnings</span>
+          </div>
+        </div>
+        <div class="stat-card infos">
+          <span class="stat-emoji">ℹ️</span>
+          <div class="stat-info">
+            <span class="stat-count" id="statInfos">0</span>
+            <span class="stat-label">Info</span>
+          </div>
+        </div>
+        <div class="stat-card errors">
+          <span class="stat-emoji">🔴</span>
+          <div class="stat-info">
+            <span class="stat-count" id="statErrors">0</span>
+            <span class="stat-label">Errors</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metrics Chips -->
+      <div class="metrics-bar" id="metricsBar" style="display:none;">
+        <div class="metric-chip">📄 Lines: <strong id="mLines">—</strong></div>
+        <div class="metric-chip">⚡ Functions: <strong id="mFuncs">—</strong></div>
+        <div class="metric-chip">🏛️ Classes: <strong id="mClasses">—</strong></div>
+        <div class="metric-chip">📦 Imports: <strong id="mImports">—</strong></div>
+        <div class="metric-chip">📏 Avg fn: <strong id="mAvgFn">—</strong> lines</div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filter-row" id="filterRow" style="display:none;">
+        <span class="filter-label">FILTER:</span>
+        <button class="pill active" data-filter="ALL" onclick="setFilter('ALL')">All</button>
+        <button class="pill" data-filter="BUG" onclick="setFilter('BUG')">🐛 Bugs</button>
+        <button class="pill" data-filter="WARNING" onclick="setFilter('WARNING')">⚠️ Warnings</button>
+        <button class="pill" data-filter="INFO" onclick="setFilter('INFO')">ℹ️ Info</button>
+        <button class="pill" data-filter="ERROR" onclick="setFilter('ERROR')">🔴 Errors</button>
+      </div>
+
+      <!-- Loader -->
+      <div class="loader" id="loader">
+        <div class="spinner"></div>
+        <p>Analyzing your code…</p>
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState">
+        <div class="big-icon">🔬</div>
+        <h3>Ready to analyze</h3>
+        <p>Paste Python code in the editor or drop a .py file, then click <strong>Analyze Code</strong>.</p>
+      </div>
+
+      <!-- Issue Cards -->
+      <div class="issues-list" id="issuesList" style="display:none;"></div>
+
+      <!-- Export -->
+      <div class="results-actions" id="resultsActions" style="display:none;">
+        <button class="btn btn-secondary" onclick="exportJSON()" style="font-size:12px;padding:7px 14px;">
+          💾 Export JSON
+        </button>
+      </div>
     </div>
 
-    <div class="footer">
-      Built with Python • FastAPI • GitHub Actions
-    </div>
-  </div>
+  </main>
+
+  <footer>
+    Built with Python · FastAPI · <span>GitHub Actions</span> · CodeMirror · &copy; Prash-2402
+  </footer>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toasts"></div>
 
   <script>
+    // ── CONFIG ────────────────────────────────────────────────────────
     const API_BASE = "https://code-review-backend-h434.onrender.com";
 
-
-    function clearAll() {
-      document.getElementById("codeInput").value = "";
-      document.getElementById("fileInput").value = "";
-      document.getElementById("results").innerHTML = "<h2>Results</h2>";
-    }
-
-    function renderResults(data) {
-      const results = document.getElementById("results");
-      results.innerHTML = "<h2>Results</h2>";
-
-      if (!data.issues || data.issues.length === 0) {
-        results.innerHTML += "<p>No issues found.</p>";
-        return;
+    // ── CODEMIRROR INIT ───────────────────────────────────────────────
+    const editor = CodeMirror.fromTextArea(document.getElementById("codeInput"), {
+      mode: "python",
+      theme: "dracula",
+      lineNumbers: true,
+      styleActiveLine: true,
+      tabSize: 4,
+      indentWithTabs: false,
+      lineWrapping: true,
+      autofocus: true,
+      extraKeys: {
+        "Ctrl-Enter": runAnalysis,
+        "Cmd-Enter": runAnalysis,
       }
+    });
 
-      data.issues.forEach(issue => {
-        const div = document.createElement("div");
-        div.className = "issue " + issue.severity;
+    // Resize CodeMirror to fill its wrapper
+    function resizeEditor() {
+      const wrapper = document.querySelector('.editor-wrapper');
+      if (wrapper) editor.setSize(null, wrapper.clientHeight || 380);
+    }
+    window.addEventListener('resize', resizeEditor);
+    setTimeout(resizeEditor, 100);
 
-        const tag = `<span class="tag">[${issue.severity}]</span>`;
-        const line = issue.line ? `<span class="line">Line ${issue.line} →</span>` : "";
+    // ── API STATUS CHECK ──────────────────────────────────────────────
+    async function checkAPI() {
+      try {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 8000);
+        const r = await fetch(`${API_BASE}/`, { signal: controller.signal });
+        clearTimeout(tid);
+        if (r.ok) {
+          document.getElementById('apiDot').classList.remove('offline');
+          document.getElementById('apiStatus').textContent = 'API Online';
+        } else { throw new Error(); }
+      } catch {
+        document.getElementById('apiDot').classList.add('offline');
+        document.getElementById('apiStatus').textContent = 'API Offline (may wake up)';
+        toast('Backend may be sleeping (Render free tier). First request may take 20-30s.', 'info', 6000);
+      }
+    }
+    checkAPI();
 
-        div.innerHTML = `${tag} ${line} ${issue.message}`;
-        results.appendChild(div);
-      });
+    // Mark API online after any successful fetch
+    function markAPIOnline() {
+      document.getElementById('apiDot').classList.remove('offline');
+      document.getElementById('apiStatus').textContent = 'API Online';
     }
 
-    async function analyzeText() {
-      const code = document.getElementById("codeInput").value;
-      if (!code.trim()) return;
+    // ── STATE ─────────────────────────────────────────────────────────
+    let lastResults = null;
+    let currentFilter = 'ALL';
+    let highlightedLine = null;
 
-      const res = await fetch(`${API_BASE}/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code })
-      });
+    // ── SAMPLE SNIPPETS ───────────────────────────────────────────────
+    const SAMPLES = {
+      bugs: `import os
+import json  # unused import
 
-      renderResults(await res.json());
+def calculate_average(nums=[]):
+    total = 0
+    count = 0
+    for n in nums:
+        total = total + n
+        count = count + 1
+    result = total / count
+    unused_var = "this is never used"
+    print("Average:", result)
+    return result
+
+def risky():
+    try:
+        x = int(input("Enter number: "))
+        return 1000 / x
+    except:
+        pass
+
+class DataProcessor:
+    def process(self, data):
+        for item in data:
+            for sub in item:
+                for detail in sub:
+                    print(detail)
+`,
+      style: `# TODO: refactor this whole file
+# FIXME: magic numbers everywhere
+
+def compute(x):
+    if x > 0:
+        return x * 3.14159 * 2 * 180 / 3.14159
+    else:
+        y = x * 42
+        z = y + 99
+
+class myClass:
+    def doTheThing(self):
+        pass
+    
+    def anotherThing(self, items):
+        for i in items:
+            for j in i:
+                print(j)
+`,
+      clean: `"""A well-written Python module."""
+
+import logging
+from typing import List
+
+logger = logging.getLogger(__name__)
+
+
+def calculate_average(numbers: List[float]) -> float:
+    """Return the arithmetic mean of a list of numbers.
+    
+    Args:
+        numbers: A list of numeric values.
+    
+    Returns:
+        The mean value.
+    
+    Raises:
+        ValueError: If the list is empty.
+    """
+    if not numbers:
+        raise ValueError("Cannot compute average of empty list")
+    return sum(numbers) / len(numbers)
+
+
+class DataProcessor:
+    """Processes incoming data records."""
+
+    def __init__(self) -> None:
+        """Initialize the processor."""
+        self._records: List[dict] = []
+
+    def add(self, record: dict) -> None:
+        """Append a record to the internal list."""
+        self._records.append(record)
+
+    def summary(self) -> dict:
+        """Return a summary of stored records."""
+        return {"count": len(self._records)}
+`
+    };
+
+    function loadSample(key) {
+      editor.setValue(SAMPLES[key]);
+      editor.focus();
+      toast(`Loaded "${key}" sample`, 'info');
+    }
+
+    // ── CORE ANALYSIS ─────────────────────────────────────────────────
+    async function runAnalysis() {
+      const code = editor.getValue();
+      if (!code.trim()) { toast('Please enter some Python code first.', 'error'); return; }
+      setLoading(true);
+      try {
+        const [analysisRes, metricsRes] = await Promise.all([
+          fetch(`${API_BASE}/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+          }),
+          fetch(`${API_BASE}/metrics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+          })
+        ]);
+
+        if (!analysisRes.ok) throw new Error(`HTTP ${analysisRes.status}`);
+        const data = await analysisRes.json();
+        const metrics = metricsRes.ok ? await metricsRes.json() : null;
+
+        lastResults = data;
+        renderResults(data, metrics);
+        markAPIOnline();
+        toast(`Analysis complete — ${data.issues.length} issue(s) found`, data.summary?.bugs > 0 ? 'error' : 'success');
+      } catch (err) {
+        toast('Error reaching backend. Is it online?', 'error');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
 
     async function analyzeFile() {
-      const file = document.getElementById("fileInput").files[0];
-      if (!file) {
-        alert("Select a .py file first");
-        return;
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) { toast('Please select a .py file first', 'error'); return; }
+      setLoading(true);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE}/analyze-file`, { method: 'POST', body: formData });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        // Also get metrics from file content
+        const text = await file.text().catch(() => null);
+        let metrics = null;
+        if (text) {
+          const mRes = await fetch(`${API_BASE}/metrics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: text })
+          });
+          if (mRes.ok) metrics = await mRes.json();
+          editor.setValue(text);
+        }
+
+        lastResults = data;
+        renderResults(data, metrics);
+        markAPIOnline();
+        toast(`File analyzed — ${data.issues.length} issue(s)`, 'success');
+      } catch (err) {
+        toast('Could not analyze file.', 'error');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // ── RENDER ────────────────────────────────────────────────────────
+    const ICONS = { BUG: '🐛', WARNING: '⚠️', INFO: 'ℹ️', ERROR: '🔴' };
+
+    function renderResults(data, metrics) {
+      const issues = data.issues || [];
+
+      // Always compute summary locally so it works with old backend too
+      const summary = { bugs: 0, warnings: 0, info: 0, errors: 0, total: issues.length };
+      issues.forEach(issue => {
+        const s = issue.severity;
+        if (s === 'BUG') summary.bugs++;
+        else if (s === 'WARNING') summary.warnings++;
+        else if (s === 'INFO') summary.info++;
+        else if (s === 'ERROR') summary.errors++;
+      });
+      // Prefer server summary if it has real numbers
+      if (data.summary && data.summary.total > 0) Object.assign(summary, data.summary);
+
+      // Summary bar
+      document.getElementById('statBugs').textContent = summary.bugs;
+      document.getElementById('statWarns').textContent = summary.warnings;
+      document.getElementById('statInfos').textContent = summary.info;
+      document.getElementById('statErrors').textContent = summary.errors;
+      document.getElementById('summaryBar').style.display = 'grid';
+
+      // Metrics
+      if (metrics) {
+        document.getElementById('mLines').textContent = metrics.total_lines;
+        document.getElementById('mFuncs').textContent = metrics.functions;
+        document.getElementById('mClasses').textContent = metrics.classes;
+        document.getElementById('mImports').textContent = metrics.imports;
+        document.getElementById('mAvgFn').textContent = metrics.avg_function_length || '—';
+        document.getElementById('metricsBar').style.display = 'flex';
       }
 
-      const formData = new FormData();
-      formData.append("file", file);
+      // Result count
+      document.getElementById('resultCount').textContent = `${issues.length} issue${issues.length !== 1 ? 's' : ''} found`;
 
-      const res = await fetch(`${API_BASE}/analyze-file`, {
-        method: "POST",
-        body: formData
+      // Filters
+      document.getElementById('filterRow').style.display = 'flex';
+
+      // Build issue cards
+      const list = document.getElementById('issuesList');
+      list.innerHTML = '';
+
+      issues.forEach((issue, idx) => {
+        const card = document.createElement('div');
+        card.className = `issue-card ${issue.severity}`;
+        card.dataset.severity = issue.severity;
+        card.style.animationDelay = `${idx * 40}ms`;
+
+        const lineLabel = issue.line ? `Line ${issue.line}` : 'File';
+        const hint = issue.line ? '↑ Click to jump to line' : '';
+
+        card.innerHTML = `
+          <span class="issue-icon">${ICONS[issue.severity] || 'ℹ️'}</span>
+          <div class="issue-body">
+            <div class="issue-meta">
+              <span class="severity-badge">${issue.severity}</span>
+              <span class="issue-line">${lineLabel}</span>
+            </div>
+            <div class="issue-message">${escapeHtml(issue.message)}</div>
+            ${hint ? `<div class="issue-hint">💡 ${hint}</div>` : ''}
+          </div>
+        `;
+
+        if (issue.line) {
+          card.addEventListener('click', () => jumpToLine(issue.line));
+        }
+
+        list.appendChild(card);
       });
 
-      renderResults(await res.json());
+      // Show list
+      document.getElementById('emptyState').style.display = 'none';
+      list.style.display = 'block';
+      document.getElementById('resultsActions').style.display = 'flex';
+
+      // Apply active filter
+      applyFilter(currentFilter);
+    }
+
+    function jumpToLine(lineNo) {
+      const line = lineNo - 1; // CodeMirror is 0-indexed
+      if (highlightedLine !== null) {
+        editor.removeLineClass(highlightedLine, 'background', 'cm-highlight-line');
+      }
+      editor.addLineClass(line, 'background', 'cm-highlight-line');
+      highlightedLine = line;
+      editor.scrollIntoView({ line, ch: 0 }, 80);
+      editor.setCursor({ line, ch: 0 });
+      editor.focus();
+      setTimeout(() => {
+        if (highlightedLine === line) {
+          editor.removeLineClass(line, 'background', 'cm-highlight-line');
+          highlightedLine = null;
+        }
+      }, 2500);
+    }
+
+    // ── FILTER ────────────────────────────────────────────────────────
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.pill').forEach(p => {
+        p.classList.toggle('active', p.dataset.filter === filter);
+      });
+      applyFilter(filter);
+    }
+
+    function applyFilter(filter) {
+      document.querySelectorAll('.issue-card').forEach(card => {
+        card.classList.toggle('hidden', filter !== 'ALL' && card.dataset.severity !== filter);
+      });
+    }
+
+    // ── DRAG & DROP ───────────────────────────────────────────────────
+    const dropZone = document.getElementById('dropZone');
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', async e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (!file || !file.name.endsWith('.py')) {
+        toast('Only .py files are supported', 'error');
+        return;
+      }
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      document.getElementById('fileInput').files = dt.files;
+      toast(`File "${file.name}" loaded — click Analyze File`, 'info');
+    });
+
+    document.getElementById('fileInput').addEventListener('change', () => {
+      const file = document.getElementById('fileInput').files[0];
+      if (file) toast(`"${file.name}" selected`, 'info');
+    });
+
+    // ── UTILITIES ─────────────────────────────────────────────────────
+    function setLoading(on) {
+      document.getElementById('loader').classList.toggle('active', on);
+      // Only show emptyState when loading stops AND we have no results yet
+      if (!on) {
+        document.getElementById('emptyState').style.display = lastResults ? 'none' : '';
+      } else {
+        document.getElementById('emptyState').style.display = 'none';
+      }
+      document.getElementById('analyzeBtn').disabled = on;
+      document.getElementById('fileBtn').disabled = on;
+      if (on) {
+        document.getElementById('issuesList').style.display = 'none';
+        document.getElementById('summaryBar').style.display = 'none';
+        document.getElementById('metricsBar').style.display = 'none';
+        document.getElementById('filterRow').style.display = 'none';
+        document.getElementById('resultsActions').style.display = 'none';
+        document.getElementById('resultCount').textContent = 'Analyzing…';
+      }
+    }
+
+    function clearAll() {
+      editor.setValue('');
+      document.getElementById('fileInput').value = '';
+      document.getElementById('issuesList').innerHTML = '';
+      document.getElementById('issuesList').style.display = 'none';
+      document.getElementById('summaryBar').style.display = 'none';
+      document.getElementById('metricsBar').style.display = 'none';
+      document.getElementById('filterRow').style.display = 'none';
+      document.getElementById('resultsActions').style.display = 'none';
+      document.getElementById('emptyState').style.display = '';
+      document.getElementById('resultCount').textContent = 'No analysis yet';
+      document.getElementById('loader').classList.remove('active');
+      lastResults = null;
+      currentFilter = 'ALL';
+      document.querySelectorAll('.pill').forEach(p => p.classList.toggle('active', p.dataset.filter === 'ALL'));
+      editor.focus();
+    }
+
+    async function copyCode() {
+      const code = editor.getValue();
+      if (!code.trim()) return;
+      await navigator.clipboard.writeText(code);
+      toast('Code copied to clipboard!', 'success');
+    }
+
+    function exportJSON() {
+      if (!lastResults) return;
+      const blob = new Blob([JSON.stringify(lastResults, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'code-review-results.json';
+      a.click();
+      toast('Results exported as JSON', 'success');
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function toast(msg, type = 'info', duration = 3500) {
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      const icons = { success: '✅', error: '❌', info: '💡' };
+      t.innerHTML = `<span>${icons[type] || '💡'}</span> ${msg}`;
+      document.getElementById('toasts').appendChild(t);
+      setTimeout(() => t.remove(), duration);
     }
   </script>
-
 </body>
 
 </html>
